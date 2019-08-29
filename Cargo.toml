@@ -1,0 +1,7 @@
+[package]
+name = "multithread-server"
+version = "0.1.0"
+authors = ["Muslim Guseinov <gusejnov1999@list.ru>"]
+edition = "2018"
+
+[dependencies]
