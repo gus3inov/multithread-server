@@ -29,9 +29,6 @@ fn main () {
 - #### _prop_ `workers` - vector of workers. Worker has a field `id` and `thread` in which executing closure
 - #### _prop_ `sender` - message sender
 
-* #### _fn_ `new` - конструктор принимает один аргумент типа `usize`, который указывает максимальное количество создаваемых воркеров. Результат выполнения конструктора значение типа `Result<ThreadPool, &'static str>` в зависимости от переданного первого параметра
+* #### _fn_ `new` - constructor takes one argument of type `usize`, which specifies the maximum number of workers to create. The result of executing the constructor is a value of type `Result<ThreadPool, &'static str>`,depending on the first parameter passed
 
-constructor takes one argument of type `usize`, which specifies the maximum number of workers to create. The result of executing the constructor is a value of type `Result<ThreadPool, &'static str>`,depending on the first parameter passed
-
-- #### _fn_ `execute` - Первым аргументом принимает замыкание типа `FnOnce() + Send`. При вызове выполняет отправку сообщений, свободный воркер принимает сообщение и выполняет его (замыкание)
-  The first argument is a closure of type `FnOnce() + Send`. When the call sends messages, receives the message and executes it.
+- #### _fn_ `execute` - The first argument is a closure of type `FnOnce() + Send`. When the call sends messages, receives the message and executes it.
