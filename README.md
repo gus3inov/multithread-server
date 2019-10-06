@@ -1,6 +1,6 @@
 # Thread Pool
 
-A multithreaded server that creates a thread pool with a maximum of 4 threads when connected.
+Thread pool crate to execute a certain number of jobs on a fixed set of worker threads.
 
 ## ThreadPool Module
 
