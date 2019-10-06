@@ -1,12 +1,12 @@
-extern crate multithread;
+extern crate threadpool;
 
-use multithread::ThreadPool;
 use std::fs::File;
 use std::io::prelude::*;
 use std::net::TcpListener;
 use std::net::TcpStream;
 use std::thread;
 use std::time::Duration;
+use threadpool::ThreadPool;
 
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:8080").unwrap();
