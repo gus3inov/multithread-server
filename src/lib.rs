@@ -15,9 +15,8 @@ pub struct ThreadPool {
 
 impl ThreadPool {
     pub fn new(size: usize) -> Result<ThreadPool, &'static str> {
-        println!("CREATING POOL");
         if size <= 0 {
-            Err("size should be more then 0")
+            Err("Size should be more then 0")
         } else {
             let mut workers = Vec::with_capacity(size);
             let (sender, reciever) = mpsc::channel();
@@ -58,13 +57,9 @@ impl ThreadPool {
 
 impl Drop for ThreadPool {
     fn drop(&mut self) {
-        println!("Sending terminate message to all workers.");
-
         for _ in &mut self.workers {
             self.sender.send(Message::Terminate).unwrap();
         }
-
-        println!("Shutting down all workers.");
 
         for worker in &mut self.workers {
             match worker.inner.clone().lock() {
@@ -72,10 +67,12 @@ impl Drop for ThreadPool {
                     println!("Shutting down worker {}", worker_inner.id);
 
                     if let Some(thread) = worker_inner.thread.take() {
-                        thread.join().unwrap();
+                        thread
+                            .join()
+                            .expect("Couldn't join on the associated thread");
                     }
                 }
-                Err(_) => panic!("Some panic"),
+                Err(_) => panic!("Failed to drop worker"),
             };
         }
     }
