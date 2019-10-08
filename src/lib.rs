@@ -9,6 +9,10 @@ enum Message {
 }
 
 pub struct ThreadPool {
+    inner: Arc<ThreadPoolInner>,
+}
+
+struct ThreadPoolInner {
     workers: Vec<Worker>,
     sender: mpsc::Sender<Message>,
 }
@@ -26,7 +30,9 @@ impl ThreadPool {
                 workers.push(Worker::new(id, reciever.clone()));
             }
 
-            Ok(ThreadPool { workers, sender })
+            Ok(ThreadPool {
+                inner: Arc::new(ThreadPoolInner { workers, sender }),
+            })
         }
     }
 
@@ -36,33 +42,32 @@ impl ThreadPool {
     {
         let job = Box::new(f);
 
-        self.sender.send(Message::NewJob(job)).unwrap();
+        self.inner
+            .sender
+            .send(Message::NewJob(job))
+            .expect("Failed when sending a message");
     }
+}
 
-    pub fn clone(&self) -> ThreadPool {
-        let mut cloned_workers: Vec<Worker> = Vec::new();
-
-        for worker in self.workers.iter() {
-            cloned_workers.push(Worker {
-                inner: worker.inner.clone(),
-            });
-        }
-
+impl Clone for ThreadPool {
+    fn clone(&self) -> Self {
         ThreadPool {
-            workers: cloned_workers,
-            sender: self.sender.clone(),
+            inner: self.inner.clone(),
         }
     }
 }
 
 impl Drop for ThreadPool {
     fn drop(&mut self) {
-        for _ in &mut self.workers {
-            self.sender.send(Message::Terminate).unwrap();
+        for _ in &self.inner.workers {
+            self.inner
+                .sender
+                .send(Message::Terminate)
+                .expect("Failed when sending a message");
         }
 
-        for worker in &mut self.workers {
-            match worker.inner.clone().lock() {
+        for worker in &self.inner.workers {
+            match worker.inner.lock() {
                 Ok(mut worker_inner) => {
                     println!("Shutting down worker {}", worker_inner.id);
 
