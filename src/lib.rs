@@ -1,7 +1,8 @@
-use std::sync::mpsc;
-use std::sync::Arc;
-use std::sync::Mutex;
+mod job;
+
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
+pub use job::{Job, JobBox};
 
 enum Message {
     NewJob(Job),
@@ -69,7 +70,7 @@ impl Drop for ThreadPool {
         for worker in &self.inner.workers {
             match worker.inner.lock() {
                 Ok(mut worker_inner) => {
-                    println!("Shutting down worker {}", worker_inner.id);
+                    println!("\nShutting down worker {}", worker_inner.id);
 
                     if let Some(thread) = worker_inner.thread.take() {
                         thread
@@ -92,7 +93,8 @@ impl<F: FnOnce()> FnBox for F {
         (*self)()
     }
 }
-type Job = Box<FnBox + Send + 'static>;
+
+// type Job = Box<FnBox + Send + 'static>;
 
 struct WorkerInner {
     id: usize,
@@ -110,12 +112,12 @@ impl Worker {
 
             match message {
                 Message::NewJob(job) => {
-                    println!("Worker {} got a job; executing.", id);
+                    println!("\nWorker {} got a job; executing.", id);
 
                     job.call_box();
                 }
                 Message::Terminate => {
-                    println!("Worker {} was told to terminate.", id);
+                    println!("\nWorker {} was told to terminate.", id);
 
                     break;
                 }
