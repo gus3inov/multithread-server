@@ -1,21 +1,31 @@
 mod job;
 
 use std::sync::{mpsc, Arc, Mutex};
-use std::thread;
+use std::{thread};
 pub use job::{Job, JobBox};
 
-enum Message {
-    NewJob(Job),
-    Terminate,
+#[derive(Debug)]
+struct Config {
+    core_size: usize,
+    max_size: usize,
+    stack_size: Option<usize>,
+    mount: Option<Arc<Fn() + Send + Sync>>,
+    leave: Option<Arc<Fn() + Send + Sync>>,
 }
 
-pub struct ThreadPool {
-    inner: Arc<ThreadPoolInner>,
+pub struct ThreadPool<T> {
+    inner: Arc<Inner<T>>,
 }
 
-struct ThreadPoolInner {
-    workers: Vec<Worker>,
-    sender: mpsc::Sender<Message>,
+#[derive(Debug)]
+pub struct TPBuilder {
+    config: Config,
+    max_size_workers: usize,
+}
+
+pub struct Sender<T> {
+    tx: mpmc::Sender<T>,
+    inner: Arc<Inner<T>>,
 }
 
 impl ThreadPool {
