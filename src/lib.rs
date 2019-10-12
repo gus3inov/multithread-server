@@ -1,8 +1,13 @@
 mod job;
 
 use std::sync::{mpsc, Arc, Mutex};
-use std::{thread};
+use std::{thread, fmt};
 pub use job::{Job, JobBox};
+
+enum Message {
+    NewJob(Job),
+    Terminate,
+}
 
 #[derive(Debug)]
 struct Config {
@@ -24,7 +29,7 @@ pub struct TPBuilder {
 }
 
 pub struct Sender<T> {
-    tx: mpmc::Sender<T>,
+    tx: mpsc::Sender<T>,
     inner: Arc<Inner<T>>,
 }
 
@@ -60,39 +65,79 @@ impl ThreadPool {
     }
 }
 
-impl Clone for ThreadPool {
+struct Inner<T> {
+    config: Config,
+    rx: mpsc::Receiver<T>,
+}
+
+impl<T> Clone for ThreadPool<T> {
     fn clone(&self) -> Self {
-        ThreadPool {
+        ThreadPool { inner: self.inner.clone() }
+    }
+}
+
+impl<T> Clone for Sender<T> {
+    fn clone(&self) -> Self {
+        Sender {
+            tx: self.tx.clone(),
             inner: self.inner.clone(),
         }
     }
 }
 
-impl Drop for ThreadPool {
-    fn drop(&mut self) {
-        for _ in &self.inner.workers {
-            self.inner
-                .sender
-                .send(Message::Terminate)
-                .expect("Failed when sending a message");
-        }
+impl fmt::Debug for Config {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        const SOME: &'static &'static str = &"Some(_)";
+        const NONE: &'static &'static str = &"None";
 
-        for worker in &self.inner.workers {
-            match worker.inner.lock() {
-                Ok(mut worker_inner) => {
-                    println!("\nShutting down worker {}", worker_inner.id);
-
-                    if let Some(thread) = worker_inner.thread.take() {
-                        thread
-                            .join()
-                            .expect("Couldn't join on the associated thread");
-                    }
-                }
-                Err(_) => panic!("Failed to drop worker"),
-            };
-        }
+        fmt.debug_struct("ThreadPool")
+           .field("core_size", &self.core_size)
+           .field("max_size", &self.max_size)
+           .field("stack_size", &self.stack_size)
+           .field("mount", if self.mount.is_some() { SOME } else { NONE })
+           .field("leave", if self.leave.is_some() { SOME } else { NONE })
+           .finish()
     }
 }
+
+impl<T> fmt::Debug for ThreadPool<T> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("ThreadPool").finish()
+    }
+}
+
+impl<T> fmt::Debug for Sender<T> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("Sender").finish()
+    }
+}
+
+
+// impl Drop for ThreadPool {
+//     fn drop(&mut self) {
+//         for _ in &self.inner.workers {
+//             self.inner
+//                 .sender
+//                 .send(Message::Terminate)
+//                 .expect("Failed when sending a message");
+//         }
+
+//         for worker in &self.inner.workers {
+//             match worker.inner.lock() {
+//                 Ok(mut worker_inner) => {
+//                     println!("\nShutting down worker {}", worker_inner.id);
+
+//                     if let Some(thread) = worker_inner.thread.take() {
+//                         thread
+//                             .join()
+//                             .expect("Couldn't join on the associated thread");
+//                     }
+//                 }
+//                 Err(_) => panic!("Failed to drop worker"),
+//             };
+//         }
+//     }
+// }
 
 trait FnBox {
     fn call_box(self: Box<Self>);
@@ -104,15 +149,9 @@ impl<F: FnOnce()> FnBox for F {
     }
 }
 
-// type Job = Box<FnBox + Send + 'static>;
-
-struct WorkerInner {
+struct Worker {
     id: usize,
     thread: Option<thread::JoinHandle<()>>,
-}
-
-struct Worker {
-    inner: Arc<Mutex<WorkerInner>>,
 }
 
 impl Worker {
