@@ -10,7 +10,7 @@ use threadpool::ThreadPool;
 
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:8080").unwrap();
-    let pool = ThreadPool::new(4).unwrap();
+    let (sender,_) = ThreadPool::fixed_size(4);
 
     let mut counter = 0;
 
@@ -24,9 +24,9 @@ fn main() {
 
         let stream = stream.unwrap();
 
-        pool.execute(|| {
+        sender.send(move || {
             handle_connection(stream);
-        })
+        }).unwrap();
     }
 }
 
