@@ -1,5 +1,5 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
-use crate::{State, lifecycle::{Lifecycle, LIFECYCLE_BITS}};
+use crate::{state::{State}, lifecycle::{Lifecycle, LIFECYCLE_BITS}};
 
 pub struct AtomicState {
     atomic: AtomicUsize,
