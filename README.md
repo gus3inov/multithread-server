@@ -1,4 +1,4 @@
-# Thread Pool
+# MultiX
 
 Thread pool crate to execute a certain number of jobs on a fixed set of worker threads.
 
