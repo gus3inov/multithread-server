@@ -1,5 +1,5 @@
 [package]
-name = "threadpool"
+name = "multix"
 version = "0.1.0"
 authors = ["Muslim Guseinov <gus3inov@yandex.ru>"]
 edition = "2018"

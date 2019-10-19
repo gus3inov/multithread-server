@@ -1,9 +1,9 @@
-extern crate threadpool;
+extern crate multix;
 
+use multix::ThreadPool;
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
-use threadpool::ThreadPool;
 
 #[test]
 fn one_thread() {
