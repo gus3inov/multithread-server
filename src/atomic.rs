@@ -1,5 +1,8 @@
+use crate::{
+    lifecycle::{Lifecycle, LIFECYCLE_BITS},
+    state::State,
+};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use crate::{state::{State}, lifecycle::{Lifecycle, LIFECYCLE_BITS}};
 
 pub struct AtomicState {
     atomic: AtomicUsize,
@@ -9,10 +12,10 @@ pub const CAPACITY: usize = (1 << (32 - 3)) - 1;
 
 impl AtomicState {
     pub fn new(lifecycle: Lifecycle) -> AtomicState {
-        let i = State::of(lifecycle).as_usize();
+        let state = State::of(lifecycle).as_usize();
 
         AtomicState {
-            atomic: AtomicUsize::new(i),
+            atomic: AtomicUsize::new(state),
         }
     }
 
@@ -23,7 +26,9 @@ impl AtomicState {
     }
 
     fn compare_and_swap(&self, expect: State, val: State) -> State {
-        let actual = self.atomic.compare_and_swap(expect.as_usize(), val.as_usize(), Ordering::SeqCst);
+        let actual =
+            self.atomic
+                .compare_and_swap(expect.as_usize(), val.as_usize(), Ordering::SeqCst);
 
         State::load(actual)
     }
@@ -31,7 +36,9 @@ impl AtomicState {
     pub fn compare_and_inc_worker_count(&self, expect: State) -> Result<State, State> {
         let expect_usize = expect.as_usize();
         let next_usize = expect_usize + (1 << LIFECYCLE_BITS);
-        let actual_usize = self.atomic.compare_and_swap(expect_usize, next_usize, Ordering::SeqCst);
+        let actual_usize = self
+            .atomic
+            .compare_and_swap(expect_usize, next_usize, Ordering::SeqCst);
 
         if actual_usize == expect_usize {
             Ok(expect)
@@ -46,7 +53,9 @@ impl AtomicState {
         }
 
         let num = expect.as_usize();
-        self.atomic.compare_and_swap(num, num - (1 << LIFECYCLE_BITS), Ordering::SeqCst) == num
+        self.atomic
+            .compare_and_swap(num, num - (1 << LIFECYCLE_BITS), Ordering::SeqCst)
+            == num
     }
 
     pub fn fetch_dec_worker_count(&self) -> State {
