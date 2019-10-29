@@ -1,7 +1,6 @@
 use self::core::Inner;
-use crate::{core, job, lifecycle};
+use crate::{core, job};
 use job::Job;
-use lifecycle::Lifecycle;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -44,7 +43,7 @@ impl<T: Job> Worker<T> {
         let size = self.inner.config.size;
 
         loop {
-            if state.lifecycle() >= Lifecycle::Stop {
+            if state.is_stoped() {
                 self.inner.config.unmount.as_ref().map(|f| f());
 
                 self.decrement_worker_count();

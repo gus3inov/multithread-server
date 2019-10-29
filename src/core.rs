@@ -332,7 +332,7 @@ impl<T: Job> Inner<T> {
         'retry: loop {
             let lifecycle = state.lifecycle();
 
-            if lifecycle >= Lifecycle::Stop {
+            if state.is_stoped() {
                 return Err(job);
             }
 
