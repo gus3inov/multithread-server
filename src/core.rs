@@ -316,9 +316,7 @@ impl<T: Job> Inner<T> {
             loop {
                 let wc = state.worker_count();
 
-                let target = self.config.size;
-
-                if wc >= CAPACITY || wc >= target {
+                if wc >= CAPACITY || wc >= self.config.size {
                     return Err(job);
                 }
 
