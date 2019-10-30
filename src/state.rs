@@ -37,6 +37,10 @@ impl State {
         self.lifecycle() == Lifecycle::Terminated
     }
 
+    pub fn is_stoped(&self) -> bool {
+        self.lifecycle() >= Lifecycle::Stop
+    }
+
     pub fn as_usize(&self) -> usize {
         self.state
     }

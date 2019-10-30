@@ -153,9 +153,7 @@ impl<T: Job> ThreadPool<T> {
     }
 
     pub fn prestart_core_thread(&self) -> bool {
-        let wc = self.inner.state.load().worker_count();
-
-        if wc < self.inner.config.size {
+        if !self.inner.is_workers_overflow() {
             self.inner.add_worker(None, &self.inner).is_ok()
         } else {
             false
@@ -242,9 +240,7 @@ impl<T: Job> Sender<T> {
     pub fn try_send(&self, job: T) -> Result<(), TrySendError<T>> {
         match self.tx.try_send(job) {
             Ok(_) => {
-                let state = self.inner.state.load();
-
-                if state.worker_count() < self.inner.config.size {
+                if !self.inner.is_workers_overflow() {
                     let _ = self.inner.add_worker(None, &self.inner);
                 }
 
@@ -313,7 +309,7 @@ impl<T: Job> Inner<T> {
         'retry: loop {
             let lifecycle = state.lifecycle();
 
-            if lifecycle >= Lifecycle::Stop {
+            if state.is_stoped() {
                 return Err(job);
             }
 
@@ -345,6 +341,12 @@ impl<T: Job> Inner<T> {
         worker.spawn(job);
 
         Ok(())
+    }
+
+    pub fn is_workers_overflow(&self) -> bool {
+        let state = self.state.load();
+
+        state.worker_count() >= self.config.size
     }
 
     pub fn finalize_instance(&self) {
