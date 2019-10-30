@@ -25,7 +25,6 @@ pub struct TPBuilder {
 
 pub struct Config {
     pub size: usize,
-    pub max_size: usize,
     pub timeout: Option<Duration>,
     pub stack_size: Option<usize>,
     pub mount: Option<Arc<Fn() + Send + Sync>>,
@@ -52,7 +51,6 @@ impl fmt::Debug for Config {
 
         fmt.debug_struct("ThreadPool")
             .field("size", &self.size)
-            .field("max_size", &self.max_size)
             .field("timeout", &self.timeout)
             .field("stack_size", &self.stack_size)
             .field("mount", if self.mount.is_some() { SOME } else { NONE })
@@ -68,7 +66,6 @@ impl TPBuilder {
         TPBuilder {
             instance: Config {
                 size: num_cpus,
-                max_size: num_cpus,
                 timeout: None,
                 stack_size: None,
                 mount: None,
@@ -80,11 +77,6 @@ impl TPBuilder {
 
     pub fn size(mut self, val: usize) -> Self {
         self.instance.size = val;
-        self
-    }
-
-    pub fn max_size(mut self, val: usize) -> Self {
-        self.instance.max_size = val;
         self
     }
 
@@ -121,14 +113,6 @@ impl TPBuilder {
 
     pub fn build<T: Job>(self) -> (Sender<T>, ThreadPool<T>) {
         assert!(self.instance.size >= 1, "at least one thread required");
-        assert!(
-            self.instance.size <= self.instance.max_size,
-            "`size` cannot be greater than `max_size`"
-        );
-        assert!(
-            self.instance.max_size >= self.instance.size,
-            "`max_size` must be greater or equal to `size`"
-        );
 
         let (tx, rx) = mpmc::channel(self.queue_capacity);
         let termination_mutex = Mutex::new(());
@@ -157,7 +141,6 @@ impl<T: Job> ThreadPool<T> {
     pub fn fixed_size(size: usize) -> (Sender<T>, ThreadPool<T>) {
         TPBuilder::new()
             .size(size)
-            .max_size(size)
             .queue_capacity(usize::MAX)
             .build()
     }
@@ -165,7 +148,6 @@ impl<T: Job> ThreadPool<T> {
     pub fn single_thread() -> (Sender<T>, ThreadPool<T>) {
         TPBuilder::new()
             .size(1)
-            .max_size(1)
             .queue_capacity(usize::MAX)
             .build()
     }
@@ -326,7 +308,6 @@ impl<T> fmt::Debug for Sender<T> {
 
 impl<T: Job> Inner<T> {
     fn add_worker(&self, job: Option<T>, arc: &Arc<Inner<T>>) -> Result<(), Option<T>> {
-        let core = job.is_none();
         let mut state = self.state.load();
 
         'retry: loop {
@@ -339,11 +320,7 @@ impl<T: Job> Inner<T> {
             loop {
                 let wc = state.worker_count();
 
-                let target = if core {
-                    self.config.size
-                } else {
-                    self.config.max_size
-                };
+                let target = self.config.size;
 
                 if wc >= CAPACITY || wc >= target {
                     return Err(job);
