@@ -63,7 +63,7 @@ impl<T: Job> Worker<T> {
                 None
             };
 
-            if wc > self.inner.config.max_size || (timeout.is_some() && timed_out) {
+            if timeout.is_some() && timed_out {
                 if wc > 1 || self.rx.len() == 0 {
                     if self.inner.state.compare_and_dec_worker_count(state) {
                         self.inner.config.unmount.as_ref().map(|f| f());
