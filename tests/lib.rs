@@ -1,6 +1,6 @@
 extern crate multix;
 
-use multix::{JobBox, ThreadPool};
+use multix::ThreadPool;
 use std::sync::mpsc;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
@@ -11,7 +11,7 @@ use std::time::Duration;
 
 #[test]
 fn one_thread() {
-    let (sender, _) = ThreadPool::fixed_size(1);
+    let (sender, _) = ThreadPool::new(1);
     let (tx, rx) = mpsc::sync_channel(0);
 
     sender
@@ -25,7 +25,7 @@ fn one_thread() {
 
 #[test]
 fn two_thread() {
-    let (sender, _) = ThreadPool::fixed_size(2);
+    let (sender, _) = ThreadPool::new(2);
     let (tx, rx) = mpsc::sync_channel(0);
 
     for _ in 0..2 {
@@ -48,7 +48,7 @@ fn two_thread() {
 
 #[test]
 fn clone_pool() {
-    let (sender, _) = ThreadPool::fixed_size(1);
+    let (sender, _) = ThreadPool::new(1);
     let (tx, rx) = mpsc::sync_channel(1);
 
     sender
@@ -63,7 +63,7 @@ fn clone_pool() {
 
 #[test]
 fn two_thread_job_on() {
-    let (sender, _) = ThreadPool::fixed_size(2);
+    let (sender, _) = ThreadPool::new(2);
     let (tx, rx) = mpsc::sync_channel(0);
 
     for _ in 0..4 {
@@ -132,4 +132,25 @@ fn threads_shutdown_now() {
     let is_not_filled = atom.load(Ordering::SeqCst) != 10;
     assert!(is_not_filled);
     assert!(pool.is_terminated());
+}
+
+#[test]
+fn mount_thread_hook() {
+    let (tx, rx) = mpsc::sync_channel(0);
+
+    let tx_clone = tx.clone();
+    let mount_thread = move || {
+        tx_clone.send("done").unwrap();
+    };
+    let (sender, _) = ThreadPool::new_with_hooks(1, Some(mount_thread), None);
+
+    sender
+        .send(move || {
+            tx.send("hey").unwrap();
+        })
+        .unwrap();
+
+    for &msg in ["done", "hey"].iter() {
+        assert_eq!(msg, rx.recv().unwrap());
+    }
 }
