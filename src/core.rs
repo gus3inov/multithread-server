@@ -95,20 +95,28 @@ impl TPBuilder {
         self
     }
 
-    pub fn mount<F>(mut self, f: F) -> Self
+    pub fn mount<F>(mut self, f: Option<F>) -> Self
     where
         F: Fn() + Send + Sync + 'static,
     {
-        self.instance.mount = Some(Arc::new(f));
-        self
+        if let Some(f) = f {
+            self.instance.mount = Some(Arc::new(f));
+            self
+        } else {
+            self
+        }
     }
 
-    pub fn unmount<F>(mut self, f: F) -> Self
+    pub fn unmount<F>(mut self, f: Option<F>) -> Self
     where
         F: Fn() + Send + Sync + 'static,
     {
-        self.instance.unmount = Some(Arc::new(f));
-        self
+        if let Some(f) = f {
+            self.instance.unmount = Some(Arc::new(f));
+            self
+        } else {
+            self
+        }
     }
 
     pub fn build<T: Job>(self) -> (Sender<T>, ThreadPool<T>) {
@@ -138,10 +146,26 @@ impl TPBuilder {
 }
 
 impl<T: Job> ThreadPool<T> {
-    pub fn fixed_size(size: usize) -> (Sender<T>, ThreadPool<T>) {
+    pub fn new(size: usize) -> (Sender<T>, ThreadPool<T>) {
         TPBuilder::new()
             .size(size)
             .queue_capacity(usize::MAX)
+            .build()
+    }
+
+    pub fn new_with_hooks<F>(
+        size: usize,
+        mount: Option<F>,
+        unmount: Option<F>,
+    ) -> (Sender<T>, ThreadPool<T>)
+    where
+        F: Sized + Fn() + Send + Sync + 'static,
+    {
+        TPBuilder::new()
+            .size(size)
+            .queue_capacity(usize::MAX)
+            .mount(mount)
+            .unmount(unmount)
             .build()
     }
 
