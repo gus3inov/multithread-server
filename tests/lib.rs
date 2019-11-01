@@ -138,11 +138,11 @@ fn threads_shutdown_now() {
 fn mount_thread_hook() {
     let (tx, rx) = mpsc::sync_channel(0);
 
-    let tx_clone = tx.clone();
+    let tx_mount = tx.clone();
     let mount_thread = move || {
-        tx_clone.send("done").unwrap();
+        tx_mount.send("mounted").unwrap();
     };
-    let (sender, _) = ThreadPool::new_with_hooks(1, Some(mount_thread), None);
+    let (sender, _) = ThreadPool::new_with_hooks(1, Some(mount_thread), Some(|| {}));
 
     sender
         .send(move || {
@@ -150,7 +150,33 @@ fn mount_thread_hook() {
         })
         .unwrap();
 
-    for &msg in ["done", "hey"].iter() {
+    for &msg in ["mounted", "hey"].iter() {
+        assert_eq!(msg, rx.recv().unwrap());
+    }
+}
+
+#[test]
+fn unmount_thread_hook() {
+    let (tx, rx) = mpsc::sync_channel(0);
+
+    let tx_mount = tx.clone();
+    let mount_thread = move || {
+        tx_mount.send("mounted").unwrap();
+    };
+    let tx_unmount = tx.clone();
+    let unmount_thread = move || {
+        tx_unmount.send("unmounted").unwrap();
+    };
+    let (sender, pool) = ThreadPool::new_with_hooks(1, Some(mount_thread), Some(unmount_thread));
+
+    sender
+        .send(move || {
+            tx.send("hey").unwrap();
+        })
+        .unwrap();
+    pool.shutdown();
+
+    for &msg in ["mounted", "hey", "unmounted"].iter() {
         assert_eq!(msg, rx.recv().unwrap());
     }
 }

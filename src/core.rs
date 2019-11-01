@@ -153,13 +153,14 @@ impl<T: Job> ThreadPool<T> {
             .build()
     }
 
-    pub fn new_with_hooks<F>(
+    pub fn new_with_hooks<U, M>(
         size: usize,
-        mount: Option<F>,
-        unmount: Option<F>,
+        mount: Option<U>,
+        unmount: Option<M>,
     ) -> (Sender<T>, ThreadPool<T>)
     where
-        F: Sized + Fn() + Send + Sync + 'static,
+        U: Sized + Fn() + Send + Sync + 'static,
+        M: Sized + Fn() + Send + Sync + 'static,
     {
         TPBuilder::new()
             .size(size)
