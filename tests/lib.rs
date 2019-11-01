@@ -1,6 +1,6 @@
 extern crate multix;
 
-use multix::{ThreadPool};
+use multix::{JobBox, ThreadPool};
 use std::sync::mpsc;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
@@ -62,30 +62,6 @@ fn clone_pool() {
 }
 
 #[test]
-fn threads_shutdown_drop() {
-    let (sender, pool) = ThreadPool::single_thread();
-    let atom = Arc::new(AtomicUsize::new(5));
-
-    for _ in 0..10 {
-        let atom = atom.clone();
-        sender
-            .send(move || {
-                atom.fetch_add(1, Ordering::SeqCst);
-            })
-            .unwrap();
-    }
-
-    drop(sender);
-
-    assert!(pool.is_terminating() || pool.is_terminated());
-
-    pool.await_termination();
-
-    assert_eq!(15, atom.load(Ordering::SeqCst));
-    assert!(pool.is_terminated());
-}
-
-#[test]
 fn two_thread_job_on() {
     let (sender, _) = ThreadPool::fixed_size(2);
     let (tx, rx) = mpsc::sync_channel(0);
@@ -110,10 +86,50 @@ fn two_thread_job_on() {
 }
 
 #[test]
-fn prestart_thread() {
-    let (_, pool) = ThreadPool::fixed_size(2);
+fn threads_shutdown_drop() {
+    let (sender, pool) = ThreadPool::single_thread();
+    let atom = Arc::new(AtomicUsize::new(5));
 
-    for _ in 0..4 {
-        assert_eq!(true, pool.prestart_core_thread());
+    for _ in 0..10 {
+        let atom = atom.clone();
+        sender
+            .send(move || {
+                atom.fetch_add(1, Ordering::SeqCst);
+            })
+            .unwrap();
     }
+
+    drop(sender);
+
+    assert!(pool.is_terminating() || pool.is_terminated());
+
+    pool.await_termination();
+
+    assert_eq!(15, atom.load(Ordering::SeqCst));
+    assert!(pool.is_terminated());
+}
+
+#[test]
+fn threads_shutdown_now() {
+    let (sender, pool) = ThreadPool::single_thread();
+    let atom = Arc::new(AtomicUsize::new(0));
+
+    for _ in 0..10 {
+        let atom = atom.clone();
+        sender
+            .send(move || {
+                atom.fetch_add(1, Ordering::SeqCst);
+            })
+            .unwrap();
+    }
+
+    pool.shutdown_now();
+
+    assert!(pool.is_terminating() || pool.is_terminated());
+
+    pool.await_termination();
+
+    let is_not_filled = atom.load(Ordering::SeqCst) != 10;
+    assert!(is_not_filled);
+    assert!(pool.is_terminated());
 }
