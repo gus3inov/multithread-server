@@ -1,6 +1,6 @@
 extern crate multix;
 
-use multix::ThreadPool;
+use multix::{ThreadPool};
 use std::sync::mpsc;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
@@ -106,5 +106,14 @@ fn two_thread_job_on() {
 
     for &msg in ["lol", "lol", "kek", "kek", "lol", "lol", "kek", "kek"].iter() {
         assert_eq!(msg, rx.recv().unwrap());
+    }
+}
+
+#[test]
+fn prestart_thread() {
+    let (_, pool) = ThreadPool::fixed_size(2);
+
+    for _ in 0..4 {
+        assert_eq!(true, pool.prestart_core_thread());
     }
 }

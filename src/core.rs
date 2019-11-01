@@ -206,6 +206,16 @@ impl<T: Job> ThreadPool<T> {
     }
 }
 
+impl ThreadPool<Box<JobBox>> {
+    pub fn fixed_size_fn(size: usize) -> (Sender<Box<JobBox>>, ThreadPool<Box<JobBox>>) {
+        TPBuilder::new()
+            .size(size)
+            .max_size(size)
+            .queue_capacity(usize::MAX)
+            .build()
+    }
+}
+
 impl<T> Clone for ThreadPool<T> {
     fn clone(&self) -> Self {
         ThreadPool {
@@ -214,7 +224,7 @@ impl<T> Clone for ThreadPool<T> {
     }
 }
 
-impl<T> fmt::Debug for ThreadPool<T> {
+impl<T: Job> fmt::Debug for ThreadPool<T> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("ThreadPool").finish()
     }
