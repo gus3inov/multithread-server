@@ -146,10 +146,7 @@ impl<T: Job> ThreadPool<T> {
     }
 
     pub fn single_thread() -> (Sender<T>, ThreadPool<T>) {
-        TPBuilder::new()
-            .size(1)
-            .queue_capacity(usize::MAX)
-            .build()
+        TPBuilder::new().size(1).queue_capacity(usize::MAX).build()
     }
 
     pub fn prestart_core_thread(&self) -> bool {
@@ -203,16 +200,6 @@ impl<T: Job> ThreadPool<T> {
 
     pub fn queued(&self) -> usize {
         self.inner.rx.len()
-    }
-}
-
-impl ThreadPool<Box<JobBox>> {
-    pub fn fixed_size_fn(size: usize) -> (Sender<Box<JobBox>>, ThreadPool<Box<JobBox>>) {
-        TPBuilder::new()
-            .size(size)
-            .max_size(size)
-            .queue_capacity(usize::MAX)
-            .build()
     }
 }
 
