@@ -95,28 +95,20 @@ impl TPBuilder {
         self
     }
 
-    pub fn mount<F>(mut self, f: Option<F>) -> Self
+    pub fn mount<F>(mut self, f: F) -> Self
     where
         F: Fn() + Send + Sync + 'static,
     {
-        if let Some(f) = f {
-            self.instance.mount = Some(Arc::new(f));
-            self
-        } else {
-            self
-        }
+        self.instance.mount = Some(Arc::new(f));
+        self
     }
 
-    pub fn unmount<F>(mut self, f: Option<F>) -> Self
+    pub fn unmount<F>(mut self, f: F) -> Self
     where
         F: Fn() + Send + Sync + 'static,
     {
-        if let Some(f) = f {
-            self.instance.unmount = Some(Arc::new(f));
-            self
-        } else {
-            self
-        }
+        self.instance.unmount = Some(Arc::new(f));
+        self
     }
 
     pub fn build<T: Job>(self) -> (Sender<T>, ThreadPool<T>) {
@@ -155,12 +147,12 @@ impl<T: Job> ThreadPool<T> {
 
     pub fn new_with_hooks<U, M>(
         size: usize,
-        mount: Option<U>,
-        unmount: Option<M>,
+        mount: U,
+        unmount: M,
     ) -> (Sender<T>, ThreadPool<T>)
     where
-        U: Sized + Fn() + Send + Sync + 'static,
-        M: Sized + Fn() + Send + Sync + 'static,
+        U: Fn() + Send + Sync + 'static,
+        M: Fn() + Send + Sync + 'static,
     {
         TPBuilder::new()
             .size(size)

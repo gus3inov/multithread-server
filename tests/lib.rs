@@ -142,7 +142,7 @@ fn mount_thread_hook() {
     let mount_thread = move || {
         tx_mount.send("mounted").unwrap();
     };
-    let (sender, _) = ThreadPool::new_with_hooks(1, Some(mount_thread), Some(|| {}));
+    let (sender, _) = ThreadPool::new_with_hooks(1, mount_thread, || {});
 
     sender
         .send(move || {
@@ -167,7 +167,7 @@ fn unmount_thread_hook() {
     let unmount_thread = move || {
         tx_unmount.send("unmounted").unwrap();
     };
-    let (sender, pool) = ThreadPool::new_with_hooks(1, Some(mount_thread), Some(unmount_thread));
+    let (sender, pool) = ThreadPool::new_with_hooks(1, mount_thread, unmount_thread);
 
     sender
         .send(move || {
