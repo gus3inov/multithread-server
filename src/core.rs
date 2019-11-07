@@ -127,11 +127,11 @@ impl TPBuilder {
         });
 
         let sender = Sender {
-            tx: tx,
+            tx,
             inner: inner.clone(),
         };
 
-        let pool = ThreadPool { inner: inner };
+        let pool = ThreadPool { inner };
 
         (sender, pool)
     }
@@ -145,11 +145,7 @@ impl<T: Job> ThreadPool<T> {
             .build()
     }
 
-    pub fn new_with_hooks<U, M>(
-        size: usize,
-        mount: U,
-        unmount: M,
-    ) -> (Sender<T>, ThreadPool<T>)
+    pub fn new_with_hooks<U, M>(size: usize, mount: U, unmount: M) -> (Sender<T>, ThreadPool<T>)
     where
         U: Fn() + Send + Sync + 'static,
         M: Fn() + Send + Sync + 'static,
