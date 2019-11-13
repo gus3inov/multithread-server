@@ -7,7 +7,9 @@ use atomic::{AtomicState, CAPACITY};
 use job::{Job, JobBox};
 use lifecycle::Lifecycle;
 use num_cpus;
-use two_lock_queue::{self as mpmc, SendError, SendTimeoutError, TrySendError};
+use crossbeam_channel::{bounded, Sender as CCSender, Receiver as CCReceiver, SendTimeoutError};
+use std::sync::mpsc::{RecvTimeoutError};
+use std::sync::mpsc::{SendError, TrySendError};
 use worker::Worker;
 
 const QUEUE_CAPACITY: usize = 64 * 1_024;
@@ -32,13 +34,13 @@ pub struct Config {
 }
 
 pub struct Sender<T> {
-    tx: mpmc::Sender<T>,
+    tx: CCSender<T>,
     inner: Arc<Inner<T>>,
 }
 
 pub struct Inner<T> {
     pub state: AtomicState,
-    pub rx: mpmc::Receiver<T>,
+    pub rx: CCReceiver<T>,
     pub termination_mutex: Mutex<()>,
     pub termination_signal: Condvar,
     pub config: Config,
@@ -114,7 +116,7 @@ impl TPBuilder {
     pub fn build<T: Job>(self) -> (Sender<T>, ThreadPool<T>) {
         assert!(self.instance.size >= 1, "at least one thread required");
 
-        let (tx, rx) = mpmc::channel(self.queue_capacity);
+        let (tx, rx) = bounded(self.queue_capacity);
         let termination_mutex = Mutex::new(());
         let termination_signal = Condvar::new();
 
@@ -175,11 +177,11 @@ impl<T: Job> ThreadPool<T> {
     }
 
     pub fn shutdown(&self) {
-        self.inner.rx.close();
+        drop(self.inner.rx);
     }
 
     pub fn shutdown_now(&self) {
-        self.inner.rx.close();
+        drop(self.inner.rx);
 
         if self.inner.state.try_transition_to_stop() {
             loop {

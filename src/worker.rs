@@ -4,10 +4,11 @@ use job::Job;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
-use two_lock_queue::{self as mpmc, RecvTimeoutError};
+use crossbeam_channel::{bounded, Sender, Receiver};
+use std::sync::mpsc::{RecvTimeoutError};
 
 pub struct Worker<T> {
-    pub rx: mpmc::Receiver<T>,
+    pub rx: Receiver<T>,
     pub inner: Arc<Inner<T>>,
 }
 
