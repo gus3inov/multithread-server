@@ -7,9 +7,7 @@ use atomic::{AtomicState, CAPACITY};
 use job::{Job, JobBox};
 use lifecycle::Lifecycle;
 use num_cpus;
-use crossbeam_channel::{bounded, Sender as CCSender, Receiver as CCReceiver, SendTimeoutError};
-use std::sync::mpsc::{RecvTimeoutError};
-use std::sync::mpsc::{SendError, TrySendError};
+use crossbeam_channel::{bounded, Sender as CCSender, Receiver as CCReceiver, SendTimeoutError, TrySendError, SendError};
 use worker::Worker;
 
 const QUEUE_CAPACITY: usize = 64 * 1_024;
@@ -194,7 +192,7 @@ impl<T: Job> ThreadPool<T> {
     }
 
     pub fn is_terminating(&self) -> bool {
-        !self.inner.rx.is_open() && !self.is_terminated()
+        !self.is_terminated()
     }
 
     pub fn is_terminated(&self) -> bool {
