@@ -4,13 +4,13 @@ use std::{fmt, usize};
 
 use crate::{atomic, job, lifecycle, worker};
 use atomic::{AtomicState, CAPACITY};
+use crossbeam_channel::{
+    bounded, Receiver as CCReceiver, SendError, SendTimeoutError, Sender as CCSender, TrySendError,
+};
 use job::{Job, JobBox};
 use lifecycle::Lifecycle;
 use num_cpus;
-use crossbeam_channel::{bounded, Sender as CCSender, Receiver as CCReceiver, SendTimeoutError, TrySendError, SendError};
 use worker::Worker;
-
-const QUEUE_CAPACITY: usize = 64 * 1_024;
 
 pub struct ThreadPool<T> {
     inner: Arc<Inner<T>>,
@@ -19,8 +19,6 @@ pub struct ThreadPool<T> {
 #[derive(Debug)]
 pub struct TPBuilder {
     instance: Config,
-
-    queue_capacity: usize,
 }
 
 pub struct Config {
@@ -71,7 +69,6 @@ impl TPBuilder {
                 mount: None,
                 unmount: None,
             },
-            queue_capacity: QUEUE_CAPACITY,
         }
     }
 
@@ -82,11 +79,6 @@ impl TPBuilder {
 
     pub fn timeout(mut self, val: Duration) -> Self {
         self.instance.timeout = Some(val);
-        self
-    }
-
-    pub fn queue_capacity(mut self, val: usize) -> Self {
-        self.queue_capacity = val;
         self
     }
 
@@ -114,7 +106,7 @@ impl TPBuilder {
     pub fn build<T: Job>(self) -> (Sender<T>, ThreadPool<T>) {
         assert!(self.instance.size >= 1, "at least one thread required");
 
-        let (tx, rx) = bounded(self.queue_capacity);
+        let (tx, rx) = bounded(self.instance.size);
         let termination_mutex = Mutex::new(());
         let termination_signal = Condvar::new();
 
@@ -139,10 +131,7 @@ impl TPBuilder {
 
 impl<T: Job> ThreadPool<T> {
     pub fn new(size: usize) -> (Sender<T>, ThreadPool<T>) {
-        TPBuilder::new()
-            .size(size)
-            .queue_capacity(usize::MAX)
-            .build()
+        TPBuilder::new().size(size).build()
     }
 
     pub fn new_with_hooks<U, M>(size: usize, mount: U, unmount: M) -> (Sender<T>, ThreadPool<T>)
@@ -152,14 +141,13 @@ impl<T: Job> ThreadPool<T> {
     {
         TPBuilder::new()
             .size(size)
-            .queue_capacity(usize::MAX)
             .mount(mount)
             .unmount(unmount)
             .build()
     }
 
     pub fn single_thread() -> (Sender<T>, ThreadPool<T>) {
-        TPBuilder::new().size(1).queue_capacity(usize::MAX).build()
+        TPBuilder::new().size(1).build()
     }
 
     pub fn prestart_core_thread(&self) -> bool {
@@ -175,11 +163,11 @@ impl<T: Job> ThreadPool<T> {
     }
 
     pub fn shutdown(&self) {
-        drop(self.inner.rx);
+        drop(&self.inner.rx);
     }
 
     pub fn shutdown_now(&self) {
-        drop(self.inner.rx);
+        drop(&self.inner.rx);
 
         if self.inner.state.try_transition_to_stop() {
             loop {
@@ -192,7 +180,7 @@ impl<T: Job> ThreadPool<T> {
     }
 
     pub fn is_terminating(&self) -> bool {
-        !self.is_terminated()
+        self.inner.rx.is_empty() && !self.is_terminated()
     }
 
     pub fn is_terminated(&self) -> bool {

@@ -1,10 +1,10 @@
 use self::core::Inner;
 use crate::{core, job};
+use crossbeam_channel::{Receiver, RecvTimeoutError};
 use job::Job;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
-use crossbeam_channel::{bounded, Sender, Receiver, RecvTimeoutError};
 
 pub struct Worker<T> {
     pub rx: Receiver<T>,
@@ -105,7 +105,7 @@ impl<T: Job> Worker<T> {
     fn decrement_worker_count(&self) {
         let state = self.inner.state.fetch_dec_worker_count();
 
-        if state.worker_count() == 1 {
+        if state.worker_count() == 1 && self.rx.is_empty() {
             self.inner.finalize_instance();
         }
     }
