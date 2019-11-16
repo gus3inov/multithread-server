@@ -105,7 +105,7 @@ impl<T: Job> Worker<T> {
     fn decrement_worker_count(&self) {
         let state = self.inner.state.fetch_dec_worker_count();
 
-        if state.worker_count() == 1 && self.rx.is_empty() {
+        if state.worker_count() == 1 && self.inner.is_disconnected() {
             self.inner.finalize_instance();
         }
     }
