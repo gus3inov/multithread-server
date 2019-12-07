@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 use std::{fmt, usize};
@@ -6,7 +6,7 @@ use std::{fmt, usize};
 use crate::{atomic, job, lifecycle, worker};
 use atomic::{AtomicState, CAPACITY};
 use crossbeam_channel::{
-    bounded, Receiver as CCReceiver, SendError, SendTimeoutError, Sender as CCSender, TrySendError,
+    bounded, Receiver as CCReceiver, SendError, SendTimeoutError, Sender as CCSender, TrySendError, TryRecvError
 };
 use job::{Job, JobBox};
 use lifecycle::Lifecycle;
@@ -41,7 +41,6 @@ pub struct Inner<T> {
     pub termination_mutex: Mutex<()>,
     pub termination_signal: Condvar,
     pub config: Config,
-    pub is_disconnected: AtomicBool,
 }
 
 impl fmt::Debug for Config {
@@ -118,7 +117,6 @@ impl TPBuilder {
             termination_mutex,
             termination_signal,
             config: self.instance,
-            is_disconnected: AtomicBool::new(false),
         });
 
         let sender = Sender {
@@ -161,8 +159,12 @@ impl<T: Job> ThreadPool<T> {
         }
     }
 
+    pub fn is_disconnected(&self) {
+        match
+    }
+
     pub fn disconnect_channel(&self) {
-        self.inner.disconnect();
+        drop(&self.inner.rx);
     }
 
     pub fn prestart_core_threads(&self) {
@@ -187,7 +189,7 @@ impl<T: Job> ThreadPool<T> {
     }
 
     pub fn is_terminating(&self) -> bool {
-        self.inner.is_disconnected() && !self.is_terminated()
+        self.is_disconnected() && !self.is_terminated() 
     }
 
     pub fn is_terminated(&self) -> bool {
@@ -301,12 +303,6 @@ impl<T> Clone for Sender<T> {
     }
 }
 
-impl<T> Drop for Sender<T> {
-    fn drop(&mut self) {
-        self.inner.disconnect();
-    }
-}
-
 impl<T> fmt::Debug for Sender<T> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         fmt.debug_struct("Sender").finish()
@@ -364,15 +360,5 @@ impl<T: Job> Inner<T> {
 
             self.termination_signal.notify_all();
         }
-    }
-}
-
-impl<T> Inner<T> {
-    pub fn is_disconnected(&self) -> bool {
-        self.is_disconnected.load(Ordering::SeqCst)
-    }
-
-    pub fn disconnect(&self) {
-        self.is_disconnected.swap(true, Ordering::SeqCst);
     }
 }

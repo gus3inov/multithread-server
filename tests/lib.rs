@@ -111,30 +111,30 @@ fn threads_shutdown_drop() {
 
 // TODO fix shutdown sender, receiver
 
-// #[test]
-// fn threads_shutdown_now() {
-//     let (sender, pool) = ThreadPool::single_thread();
-//     let atom = Arc::new(AtomicUsize::new(0));
+#[test]
+fn threads_shutdown_now() {
+    let (sender, pool) = ThreadPool::single_thread();
+    let atom = Arc::new(AtomicUsize::new(0));
 
-//     for _ in 0..10 {
-//         let atom = atom.clone();
-//         sender
-//             .send(move || {
-//                 atom.fetch_add(1, Ordering::SeqCst);
-//             })
-//             .unwrap();
-//     }
+    for _ in 0..10 {
+        let atom = atom.clone();
+        sender
+            .send(move || {
+                atom.fetch_add(1, Ordering::SeqCst);
+            })
+            .unwrap();
+    }
 
-//     pool.shutdown_now();
+    pool.shutdown_now();
 
-//     assert!(pool.is_terminating() || pool.is_terminated());
+    assert!(pool.is_terminated());
 
-//     pool.await_termination();
+    pool.await_termination();
 
-//     let is_not_filled = atom.load(Ordering::SeqCst) != 10;
-//     assert!(is_not_filled);
-//     assert!(pool.is_terminated());
-// }
+    let is_not_filled = atom.load(Ordering::SeqCst) != 10;
+    assert!(is_not_filled);
+    assert!(pool.is_terminated());
+}
 
 #[test]
 fn mount_thread_hook() {
