@@ -1,4 +1,3 @@
-use std::sync::atomic::{AtomicBool};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 use std::{fmt, usize};
@@ -159,33 +158,28 @@ impl<T: Job> ThreadPool<T> {
         }
     }
 
-    pub fn is_disconnected(&self) {
-        match
-    }
-
-    pub fn disconnect_channel(&self) {
-        drop(&self.inner.rx);
+    pub fn is_disconnected(&self) -> bool {
+        match self.inner.rx.try_recv() {
+            Err(TryRecvError::Disconnected) => true,
+            _ => false,
+        }
     }
 
     pub fn prestart_core_threads(&self) {
         while self.prestart_core_thread() {}
     }
 
-    pub fn shutdown(&self) {
-        self.disconnect_channel();
-    }
-
     pub fn shutdown_now(&self) {
-        self.disconnect_channel();
+        drop(&self.inner.rx);
 
-        if self.inner.state.try_transition_to_stop() {
-            loop {
-                match self.inner.rx.recv() {
-                    Err(_) => return,
-                    Ok(_) => {}
-                }
-            }
-        }
+        // if self.inner.state.try_transition_to_stop() {
+        //     loop {
+        //         match self.inner.rx.recv() {
+        //             Err(_) => return,
+        //             Ok(_) => {}
+        //         }
+        //     }
+        // }
     }
 
     pub fn is_terminating(&self) -> bool {

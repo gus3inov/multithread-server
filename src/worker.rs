@@ -1,6 +1,6 @@
 use self::core::Inner;
 use crate::{core, job};
-use crossbeam_channel::{Receiver, RecvTimeoutError};
+use crossbeam_channel::{Receiver, RecvTimeoutError, TryRecvError};
 use job::Job;
 use std::sync::Arc;
 use std::thread;
@@ -95,6 +95,13 @@ impl<T: Job> Worker<T> {
         job
     }
 
+    pub fn is_disconnected(&self) -> bool {
+        match self.rx.try_recv() {
+            Err(TryRecvError::Disconnected) => true,
+            _ => false,
+        }
+    }
+
     fn recv_job(&self, timeout: Option<Duration>) -> Result<T, RecvTimeoutError> {
         match timeout {
             Some(timeout) => self.rx.recv_timeout(timeout),
@@ -105,7 +112,7 @@ impl<T: Job> Worker<T> {
     fn decrement_worker_count(&self) {
         let state = self.inner.state.fetch_dec_worker_count();
 
-        if state.worker_count() == 1 {
+        if state.worker_count() == 1 && self.is_disconnected() {
             self.inner.finalize_instance();
         }
     }

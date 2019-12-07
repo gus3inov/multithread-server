@@ -109,13 +109,12 @@ fn threads_shutdown_drop() {
     assert!(pool.is_terminated());
 }
 
-// TODO fix shutdown sender, receiver
-
 #[test]
 fn threads_shutdown_now() {
     let (sender, pool) = ThreadPool::single_thread();
     let atom = Arc::new(AtomicUsize::new(0));
-
+    
+    pool.shutdown_now();
     for _ in 0..10 {
         let atom = atom.clone();
         sender
@@ -125,9 +124,9 @@ fn threads_shutdown_now() {
             .unwrap();
     }
 
-    pool.shutdown_now();
+    drop(sender);
 
-    assert!(pool.is_terminated());
+    assert!(pool.is_terminating() || pool.is_terminated());
 
     pool.await_termination();
 
