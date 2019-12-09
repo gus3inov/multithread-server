@@ -5,7 +5,8 @@ use std::{fmt, usize};
 use crate::{atomic, job, lifecycle, worker};
 use atomic::{AtomicState, CAPACITY};
 use crossbeam_channel::{
-    bounded, Receiver as CCReceiver, SendError, SendTimeoutError, Sender as CCSender, TrySendError, TryRecvError
+    bounded, Receiver as CCReceiver, SendError, SendTimeoutError, Sender as CCSender, TryRecvError,
+    TrySendError,
 };
 use job::{Job, JobBox};
 use lifecycle::Lifecycle;
@@ -172,18 +173,18 @@ impl<T: Job> ThreadPool<T> {
     pub fn shutdown_now(&self) {
         drop(&self.inner.rx);
 
-        // if self.inner.state.try_transition_to_stop() {
-        //     loop {
-        //         match self.inner.rx.recv() {
-        //             Err(_) => return,
-        //             Ok(_) => {}
-        //         }
-        //     }
-        // }
+        if self.inner.state.try_transition_to_stop() {
+            loop {
+                match self.inner.rx.recv() {
+                    Err(_) => return,
+                    Ok(_) => {}
+                }
+            }
+        }
     }
 
     pub fn is_terminating(&self) -> bool {
-        self.is_disconnected() && !self.is_terminated() 
+        self.is_disconnected() && !self.is_terminated()
     }
 
     pub fn is_terminated(&self) -> bool {
