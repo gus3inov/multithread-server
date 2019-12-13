@@ -30,13 +30,9 @@ pub struct Config {
     pub unmount: Option<Arc<Fn() + Send + Sync>>,
 }
 
-pub struct Sender<T> {
-    tx: CCSender<T>,
-    inner: Arc<Inner<T>>,
-}
-
 pub struct Inner<T> {
     pub state: AtomicState,
+    pub tx: CCSender<T>,
     pub rx: CCReceiver<T>,
     pub termination_mutex: Mutex<()>,
     pub termination_signal: Condvar,
@@ -104,7 +100,7 @@ impl TPBuilder {
         self
     }
 
-    pub fn build<T: Job>(self) -> (Sender<T>, ThreadPool<T>) {
+    pub fn build<T: Job>(self) -> ThreadPool<T> {
         assert!(self.instance.size >= 1, "at least one thread required");
 
         let (tx, rx) = bounded(self.instance.size);
@@ -113,29 +109,25 @@ impl TPBuilder {
 
         let inner = Arc::new(Inner {
             state: AtomicState::new(Lifecycle::Running),
+            tx,
             rx,
             termination_mutex,
             termination_signal,
             config: self.instance,
         });
 
-        let sender = Sender {
-            tx,
-            inner: inner.clone(),
-        };
-
         let pool = ThreadPool { inner };
 
-        (sender, pool)
+        pool
     }
 }
 
 impl<T: Job> ThreadPool<T> {
-    pub fn new(size: usize) -> (Sender<T>, ThreadPool<T>) {
+    pub fn new(size: usize) -> ThreadPool<T> {
         TPBuilder::new().size(size).build()
     }
 
-    pub fn new_with_hooks<U, M>(size: usize, mount: U, unmount: M) -> (Sender<T>, ThreadPool<T>)
+    pub fn new_with_hooks<U, M>(size: usize, mount: U, unmount: M) -> ThreadPool<T>
     where
         U: Fn() + Send + Sync + 'static,
         M: Fn() + Send + Sync + 'static,
@@ -147,7 +139,7 @@ impl<T: Job> ThreadPool<T> {
             .build()
     }
 
-    pub fn single_thread() -> (Sender<T>, ThreadPool<T>) {
+    pub fn single_thread() -> ThreadPool<T> {
         TPBuilder::new().size(1).build()
     }
 
@@ -170,7 +162,12 @@ impl<T: Job> ThreadPool<T> {
         while self.prestart_core_thread() {}
     }
 
-    pub fn shutdown_now(&self) {
+    pub fn close(&self) {
+        drop(&self.inner.tx);
+    }
+
+    pub fn close_force(&self) {
+        drop(&self.inner.tx);
         drop(&self.inner.rx);
 
         if self.inner.state.try_transition_to_stop() {
@@ -206,28 +203,12 @@ impl<T: Job> ThreadPool<T> {
     pub fn queued(&self) -> usize {
         self.inner.rx.len()
     }
-}
 
-impl<T> Clone for ThreadPool<T> {
-    fn clone(&self) -> Self {
-        ThreadPool {
-            inner: self.inner.clone(),
-        }
-    }
-}
-
-impl<T: Job> fmt::Debug for ThreadPool<T> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("ThreadPool").finish()
-    }
-}
-
-impl<T: Job> Sender<T> {
     pub fn send(&self, job: T) -> Result<(), SendError<T>> {
         match self.try_send(job) {
             Ok(_) => Ok(()),
             Err(TrySendError::Disconnected(job)) => Err(SendError(job)),
-            Err(TrySendError::Full(job)) => self.tx.send(job),
+            Err(TrySendError::Full(job)) => self.inner.tx.send(job),
         }
     }
 
@@ -235,12 +216,12 @@ impl<T: Job> Sender<T> {
         match self.try_send(job) {
             Ok(_) => Ok(()),
             Err(TrySendError::Disconnected(job)) => Err(SendTimeoutError::Disconnected(job)),
-            Err(TrySendError::Full(job)) => self.tx.send_timeout(job, timeout),
+            Err(TrySendError::Full(job)) => self.inner.tx.send_timeout(job, timeout),
         }
     }
 
     pub fn try_send(&self, job: T) -> Result<(), TrySendError<T>> {
-        match self.tx.try_send(job) {
+        match self.inner.tx.try_send(job) {
             Ok(_) => {
                 if !self.inner.is_workers_overflow() {
                     let _ = self.inner.add_worker(None, &self.inner);
@@ -259,7 +240,7 @@ impl<T: Job> Sender<T> {
     }
 }
 
-impl Sender<Box<JobBox>> {
+impl ThreadPool<Box<JobBox>> {
     pub fn send_fn<F>(&self, job: F) -> Result<(), SendError<Box<JobBox>>>
     where
         F: FnOnce() + Send + 'static,
@@ -289,18 +270,17 @@ impl Sender<Box<JobBox>> {
     }
 }
 
-impl<T> Clone for Sender<T> {
+impl<T> Clone for ThreadPool<T> {
     fn clone(&self) -> Self {
-        Sender {
-            tx: self.tx.clone(),
+        ThreadPool {
             inner: self.inner.clone(),
         }
     }
 }
 
-impl<T> fmt::Debug for Sender<T> {
+impl<T: Job> fmt::Debug for ThreadPool<T> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_struct("Sender").finish()
+        fmt.debug_struct("ThreadPool").finish()
     }
 }
 
