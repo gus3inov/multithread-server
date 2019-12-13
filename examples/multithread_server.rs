@@ -10,7 +10,7 @@ use multix::ThreadPool;
 
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:8080").unwrap();
-    let (sender,_) = ThreadPool::new(4);
+    let pool = ThreadPool::new(4);
 
     let mut counter = 0;
 
@@ -24,7 +24,7 @@ fn main() {
 
         let stream = stream.unwrap();
 
-        sender.send(move || {
+        pool.send(move || {
             handle_connection(stream);
         }).unwrap();
     }
