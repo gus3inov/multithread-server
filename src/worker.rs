@@ -8,7 +8,7 @@ use std::time::Duration;
 
 pub struct Worker<T> {
     pub rx: Receiver<T>,
-    pub inner: Arc<Inner<T>>,
+    pub inner: Arc<Inner>,
 }
 
 impl<T: Job> Worker<T> {

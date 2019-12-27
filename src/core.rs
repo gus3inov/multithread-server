@@ -14,7 +14,9 @@ use num_cpus;
 use worker::Worker;
 
 pub struct ThreadPool<T> {
-    inner: Arc<Inner<T>>,
+    inner: Arc<Inner>,
+    pub tx: CCSender<T>,
+    rx: CCReceiver<T>,
 }
 
 #[derive(Debug)]
@@ -30,10 +32,8 @@ pub struct Config {
     pub unmount: Option<Arc<Fn() + Send + Sync>>,
 }
 
-pub struct Inner<T> {
+pub struct Inner {
     pub state: AtomicState,
-    pub tx: CCSender<T>,
-    pub rx: CCReceiver<T>,
     pub termination_mutex: Mutex<()>,
     pub termination_signal: Condvar,
     pub config: Config,
@@ -109,14 +109,16 @@ impl TPBuilder {
 
         let inner = Arc::new(Inner {
             state: AtomicState::new(Lifecycle::Running),
-            tx,
-            rx,
             termination_mutex,
             termination_signal,
             config: self.instance,
         });
 
-        let pool = ThreadPool { inner };
+        let pool = ThreadPool {
+            inner,
+            tx,
+            rx,
+        };
 
         pool
     }
@@ -145,14 +147,14 @@ impl<T: Job> ThreadPool<T> {
 
     pub fn prestart_core_thread(&self) -> bool {
         if !self.inner.is_workers_overflow() {
-            self.inner.add_worker(None, &self.inner).is_ok()
+            self.inner.add_worker(&self.rx, None, &self.inner).is_ok()
         } else {
             false
         }
     }
 
     pub fn is_disconnected(&self) -> bool {
-        match self.inner.rx.try_recv() {
+        match self.rx.try_recv() {
             Err(TryRecvError::Disconnected) => true,
             _ => false,
         }
@@ -163,16 +165,16 @@ impl<T: Job> ThreadPool<T> {
     }
 
     pub fn close(&self) {
-        drop(&self.inner.tx);
+        std::ops::drop(&self.tx);
     }
 
     pub fn close_force(&self) {
-        drop(&self.inner.tx);
-        drop(&self.inner.rx);
+        drop(&self.tx);
+        drop(&self.rx);
 
         if self.inner.state.try_transition_to_stop() {
             loop {
-                match self.inner.rx.recv() {
+                match self.rx.recv() {
                     Err(_) => return,
                     Ok(_) => {}
                 }
@@ -201,14 +203,14 @@ impl<T: Job> ThreadPool<T> {
     }
 
     pub fn queued(&self) -> usize {
-        self.inner.rx.len()
+        self.rx.len()
     }
 
     pub fn send(&self, job: T) -> Result<(), SendError<T>> {
         match self.try_send(job) {
             Ok(_) => Ok(()),
             Err(TrySendError::Disconnected(job)) => Err(SendError(job)),
-            Err(TrySendError::Full(job)) => self.inner.tx.send(job),
+            Err(TrySendError::Full(job)) => self.tx.send(job),
         }
     }
 
@@ -216,15 +218,15 @@ impl<T: Job> ThreadPool<T> {
         match self.try_send(job) {
             Ok(_) => Ok(()),
             Err(TrySendError::Disconnected(job)) => Err(SendTimeoutError::Disconnected(job)),
-            Err(TrySendError::Full(job)) => self.inner.tx.send_timeout(job, timeout),
+            Err(TrySendError::Full(job)) => self.tx.send_timeout(job, timeout),
         }
     }
 
     pub fn try_send(&self, job: T) -> Result<(), TrySendError<T>> {
-        match self.inner.tx.try_send(job) {
+        match self.tx.try_send(job) {
             Ok(_) => {
                 if !self.inner.is_workers_overflow() {
-                    let _ = self.inner.add_worker(None, &self.inner);
+                    let _ = self.inner.add_worker(&self.rx, None, &self.inner);
                 }
 
                 Ok(())
@@ -232,7 +234,7 @@ impl<T: Job> ThreadPool<T> {
             Err(TrySendError::Disconnected(job)) => {
                 return Err(TrySendError::Disconnected(job));
             }
-            Err(TrySendError::Full(job)) => match self.inner.add_worker(Some(job), &self.inner) {
+            Err(TrySendError::Full(job)) => match self.inner.add_worker(&self.rx, Some(job), &self.inner) {
                 Ok(_) => return Ok(()),
                 Err(job) => return Err(TrySendError::Full(job.unwrap())),
             },
@@ -274,6 +276,8 @@ impl<T> Clone for ThreadPool<T> {
     fn clone(&self) -> Self {
         ThreadPool {
             inner: self.inner.clone(),
+            tx: self.tx.clone(),
+            rx: self.rx.clone(),
         }
     }
 }
@@ -284,8 +288,8 @@ impl<T: Job> fmt::Debug for ThreadPool<T> {
     }
 }
 
-impl<T: Job> Inner<T> {
-    fn add_worker(&self, job: Option<T>, arc: &Arc<Inner<T>>) -> Result<(), Option<T>> {
+impl Inner {
+    fn add_worker<T: Job>(&self, rx: &CCReceiver<T>, job: Option<T>, arc: &Arc<Inner>) -> Result<(), Option<T>> {
         let mut state = self.state.load();
 
         'retry: loop {
@@ -314,7 +318,7 @@ impl<T: Job> Inner<T> {
         }
 
         let worker = Worker {
-            rx: self.rx.clone(),
+            rx: rx.clone(),
             inner: arc.clone(),
         };
 
