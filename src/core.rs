@@ -165,7 +165,7 @@ impl<T: Job> ThreadPool<T> {
     }
 
     pub fn close(&self) {
-        std::ops::drop(&self.tx);
+        drop(&self.tx);
     }
 
     pub fn close_force(&self) {
